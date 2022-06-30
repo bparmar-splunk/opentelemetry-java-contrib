@@ -1,17 +1,10 @@
 package com.example.javaagent;
 
+import com.example.service.Service;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.logs.data.LogData;
 import io.opentelemetry.sdk.logs.export.LogExporter;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpResponse;
-import org.apache.http.client.HttpClient;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.impl.client.HttpClientBuilder;
 
-import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.util.Collection;
 
 /**
@@ -21,34 +14,33 @@ import java.util.Collection;
 public final class CustomHECLogExporter implements LogExporter {
     private static final String INSTRUMENTATION_NAME = CustomHECLogExporter.class.getName();
 
+    public static String HEC_TOKEN = "";
+    public static String SPLUNK_BASE_URL = "";
+
+    private static Service service = new Service();
+
+    public static void setHECToken(String token) {
+        HEC_TOKEN = token;
+    }
+    public static void setSplunkBaseUrl(String baseUrl) {
+        SPLUNK_BASE_URL = baseUrl;
+    }
+
     public CustomHECLogExporter() {
     }
 
     @Override
     public CompletableResultCode export(Collection<LogData> logs) {
-        System.out.println("Export method executed.");
-        HttpClient httpClient = HttpClientBuilder.create().build();
-        HttpPost httpPost = new HttpPost("http://127.0.0.1:8088/services/collector/raw");
-        httpPost.addHeader("Authorization", "Splunk 2e4391ff-5370-489a-8545-ead7856ac345");
 
         if (logs != null && !logs.isEmpty()) {
-            for (LogData log : logs) {
+            logs.stream().filter(log -> log.getSpanContext().isValid()).forEach(log -> {
                 try {
-                    httpPost.setEntity(new StringEntity(log.toString()));
-                } catch (UnsupportedEncodingException e) {
+                    service.sendEvents(log);
+                } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
-            }
+            });
         }
-
-        HttpResponse response = null;
-        try {
-            response = httpClient.execute(httpPost);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        HttpEntity entity = response.getEntity();
-        System.out.println("response: " + entity);
         return CompletableResultCode.ofSuccess();
     }
 

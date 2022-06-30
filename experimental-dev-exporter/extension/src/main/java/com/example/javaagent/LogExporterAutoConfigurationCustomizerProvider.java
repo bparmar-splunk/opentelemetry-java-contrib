@@ -32,6 +32,10 @@ public class LogExporterAutoConfigurationCustomizerProvider
     }
 
     private SdkLogEmitterProviderBuilder configureLogExporter(SdkLogEmitterProviderBuilder builder, ConfigProperties properties) {
+        String hecToken = properties.getString("hec.token");
+        String baseUrl = properties.getString("splunk.base.url");
+        CustomHECLogExporter.setHECToken(hecToken == null || hecToken.isEmpty() ? "" : hecToken);
+        CustomHECLogExporter.setSplunkBaseUrl(baseUrl == null || baseUrl.isEmpty() ? "https://127.0.0.1:8088" : baseUrl);
         return builder.addLogProcessor(SimpleLogProcessor.create(new CustomHECLogExporter()));
     }
 }

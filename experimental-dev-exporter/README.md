@@ -12,6 +12,8 @@
    2. From /extension directory, run command: **./gradlew build**
    3. After successful build, run command: **chmod 777 ./build/libs/***
 4. Navigate to java-app-example folder, run command: **mvn package**
-5. Launch new terminal window, run below command: <br/>
-  **java
+5. Launch new terminal window, run below commands: <br/>
+   1. **export SPLUNK_BASE_URL=https://127.0.0.1:8088** `[Replace actual base url]` <br/>
+   2. **export HEC_TOKEN=00000000-0000-0000-0000-000000000000** `[Replace actual HEC token here]` <br/>
+   3. **java
   -javaagent:{FULL_PATH_OF_extension_folder}/build/libs/opentelemetry-javaagent.jar -jar {FULL_PATH_OF_app-example_folder}/target/java-app-example.jar**
