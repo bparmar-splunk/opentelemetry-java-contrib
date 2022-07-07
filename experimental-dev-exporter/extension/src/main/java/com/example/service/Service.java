@@ -1,7 +1,10 @@
 package com.example.service;
 
 import com.example.javaagent.CustomHECLogExporter;
-import com.google.gson.*;
+import com.google.gson.Gson;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonSerializer;
 import io.opentelemetry.sdk.logs.data.LogData;
 import okhttp3.*;
 import org.jetbrains.annotations.NotNull;
@@ -10,12 +13,17 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 import java.io.IOException;
-import java.lang.reflect.Type;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
+/**
+ * Class responsible to establish connection between client and server.
+ * It makes use of pre-defined constants and environment variables to manage connection.
+ */
 public class Service {
     private static final Gson gson;
     private static final boolean DISABLE_CERTIFICATE_VALIDATION = true;
@@ -27,24 +35,24 @@ public class Service {
 
     private static TimeoutSettings timeoutSettings = new TimeoutSettings();
 
+    private static final Logger LOGGER = Logger.getLogger(Service.class.getName());
+
     static {
-        gson = new Gson().newBuilder().registerTypeAdapter(LogData.class, new JsonSerializer<LogData>() {
-            @Override
-            public JsonElement serialize(LogData src, Type typeOfSrc, JsonSerializationContext context) {
+        gson = new Gson().newBuilder().registerTypeAdapter(LogData.class, (JsonSerializer<LogData>) (src, typeOfSrc, context) -> {
 
-                JsonElement jsonElement = new Gson().toJsonTree(src);
-                JsonObject jsonObject = jsonElement.getAsJsonObject();
+            JsonElement jsonElement = new Gson().toJsonTree(src);
+            JsonObject jsonObject = jsonElement.getAsJsonObject();
 
-                // This format is based on Splunk Date time format.
-                String formattedDate = ZonedDateTime.now(ZoneId.of("UTC")).format(DateTimeFormatter.ofPattern("MM-dd-yyyy HH:mm:ss.SSS Z"));
-                jsonObject.addProperty("time", formattedDate);
-                return jsonObject;
-            }
+            // This format is based on Splunk Date time format.
+            String formattedDate = ZonedDateTime.now(ZoneId.of("UTC")).format(DateTimeFormatter.ofPattern("MM-dd-yyyy HH:mm:ss.SSS Z"));
+            jsonObject.addProperty("time", formattedDate);
+            return jsonObject;
         }).create();
 
         OkHttpClient.Builder builder = new OkHttpClient.Builder();
 
-        builder.connectTimeout(timeoutSettings.connectTimeout, TimeUnit.MILLISECONDS).callTimeout(timeoutSettings.callTimeout, TimeUnit.MILLISECONDS).readTimeout(timeoutSettings.readTimeout, TimeUnit.MILLISECONDS).writeTimeout(timeoutSettings.writeTimeout, TimeUnit.MILLISECONDS);
+        builder.connectTimeout(timeoutSettings.connectTimeout, TimeUnit.MILLISECONDS).callTimeout(timeoutSettings.callTimeout, TimeUnit.MILLISECONDS)
+                .readTimeout(timeoutSettings.readTimeout, TimeUnit.MILLISECONDS).writeTimeout(timeoutSettings.writeTimeout, TimeUnit.MILLISECONDS);
 
 
         if (DISABLE_CERTIFICATE_VALIDATION) {
@@ -67,7 +75,10 @@ public class Service {
                 sslContext.init(null, trustAllCerts, new java.security.SecureRandom());
                 builder.sslSocketFactory(sslContext.getSocketFactory(), (X509TrustManager) trustAllCerts[0]);
                 builder.hostnameVerifier((hostname, session) -> true);
+
+                LOGGER.warning("Certificate(s) validation is disabled. Hence all certificates are accepted by default.");
             } catch (Exception e) {
+                LOGGER.log(Level.SEVERE, e.getLocalizedMessage());
                 throw new RuntimeException(e);
             }
         }
@@ -82,8 +93,7 @@ public class Service {
      */
     public void sendEvents(LogData logData) throws Exception {
 
-        Request.Builder requestBuilder = new Request.Builder().url(CustomHECLogExporter.SPLUNK_BASE_URL + RAW_SERVICE_URL)
-                .addHeader(AUTHORIZATION_HEADER_TAG, String.format(AUTHORIZATION_HEADER_SCHEME, CustomHECLogExporter.HEC_TOKEN));
+        Request.Builder requestBuilder = new Request.Builder().url(CustomHECLogExporter.SPLUNK_BASE_URL + RAW_SERVICE_URL).addHeader(AUTHORIZATION_HEADER_TAG, String.format(AUTHORIZATION_HEADER_SCHEME, CustomHECLogExporter.HEC_TOKEN));
 
         String body = gson.getAdapter(LogData.class).toJson(logData);
 
@@ -93,14 +103,13 @@ public class Service {
 
             @Override
             public void onFailure(@NotNull Call call, @NotNull IOException e) {
-                e.printStackTrace();
+                LOGGER.log(Level.SEVERE, e.getLocalizedMessage());
             }
 
             @Override
             public void onResponse(@NotNull Call call, @NotNull Response response) throws IOException {
 
-                System.out.println("Response Code : " + response.code());
-                System.out.println("Message : " + response.message());
+                LOGGER.info("Response Code: " + response.code() + " -- Message : " + response.message());
                 response.close();
             }
         });
@@ -111,28 +120,4 @@ public class Service {
         return httpClient;
     }
 
-    public static class TimeoutSettings {
-        public static final long DEFAULT_CONNECT_TIMEOUT = 3000;
-        public static final long DEFAULT_WRITE_TIMEOUT = 10000; // 0 means no timeout
-        public static final long DEFAULT_CALL_TIMEOUT = 0;
-        public static final long DEFAULT_READ_TIMEOUT = 10000;
-        public static final long DEFAULT_TERMINATION_TIMEOUT = 0;
-
-        public long connectTimeout = DEFAULT_CONNECT_TIMEOUT;
-        public long callTimeout = DEFAULT_CALL_TIMEOUT;
-        public long readTimeout = DEFAULT_READ_TIMEOUT;
-        public long writeTimeout = DEFAULT_WRITE_TIMEOUT;
-        public long terminationTimeout = DEFAULT_TERMINATION_TIMEOUT;
-
-        public TimeoutSettings() {
-        }
-
-        public TimeoutSettings(long connectTimeout, long callTimeout, long readTimeout, long writeTimeout, long terminationTimeout) {
-            this.connectTimeout = connectTimeout;
-            this.callTimeout = callTimeout;
-            this.readTimeout = readTimeout;
-            this.writeTimeout = writeTimeout;
-            this.terminationTimeout = terminationTimeout;
-        }
-    }
 }

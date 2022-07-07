@@ -10,7 +10,6 @@ import io.opentelemetry.sdk.autoconfigure.spi.AutoConfigurationCustomizer;
 import io.opentelemetry.sdk.autoconfigure.spi.AutoConfigurationCustomizerProvider;
 import io.opentelemetry.sdk.autoconfigure.spi.ConfigProperties;
 import io.opentelemetry.sdk.logs.SdkLogEmitterProviderBuilder;
-import io.opentelemetry.sdk.logs.export.LogExporter;
 import io.opentelemetry.sdk.logs.export.SimpleLogProcessor;
 
 /**
@@ -23,8 +22,7 @@ import io.opentelemetry.sdk.logs.export.SimpleLogProcessor;
  * @see AutoConfigurationCustomizerProvider
  */
 @AutoService(AutoConfigurationCustomizerProvider.class)
-public class LogExporterAutoConfigurationCustomizerProvider
-        implements AutoConfigurationCustomizerProvider {
+public class LogExporterAutoConfigurationCustomizerProvider implements AutoConfigurationCustomizerProvider {
 
     @Override
     public void customize(AutoConfigurationCustomizer autoConfiguration) {
